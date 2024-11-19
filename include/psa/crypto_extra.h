@@ -62,6 +62,11 @@ extern "C" {
 
 #endif /* !MBEDTLS_PSA_STATIC_KEY_SLOT_BUFFER_SIZE*/
 
+ /* Functions to support vendor defined format */
+psa_status_t vendor_bitlength_to_raw_bitlength(psa_key_type_t type, size_t vendor_bits, size_t * raw_bits);
+void psa_aead_setup_vendor (void * ctx);
+
+
 /** \addtogroup attributes
  * @{
  */
