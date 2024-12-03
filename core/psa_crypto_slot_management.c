@@ -25,6 +25,9 @@
 #include "threading_internal.h"
 #endif
 
+#if defined (MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+#include "psa/crypto_accel_driver.h"
+#endif
 
 
 /* Make sure we have distinct ranges of key identifiers for distinct
