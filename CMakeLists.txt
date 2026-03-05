@@ -396,10 +396,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Check" AND TEST_CPP)
     endif()
 endif()
 
-if (NOT EXISTS "${TF_PSA_CRYPTO_FRAMEWORK_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR "${TF_PSA_CRYPTO_FRAMEWORK_DIR}/CMakeLists.txt not found. Run `git submodule update --init` from the source tree to fetch the submodule contents.")
-endif()
-
 #
 # Directories with internal headers. The headers in that directories are not
 # exposed to applications and thus not installed. These headers are currently
@@ -423,7 +419,6 @@ set(TF_PSA_CRYPTO_PRIVATE_INCLUDE_DIRS
 # constructed in `drivers/CMakeLists.txt`. This list may include a generated
 # test driver.
 #
-add_subdirectory(framework)
 add_subdirectory(include)
 add_subdirectory(drivers)   # must precede core
 add_subdirectory(extras)

@@ -72,3 +72,5 @@ compile_commands.json
 
 # VScode folder to store local debug files and configurations
 .vscode
+
+/drivers/pqcp/mldsa-native
