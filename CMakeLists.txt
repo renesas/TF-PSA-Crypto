@@ -71,12 +71,12 @@ set(version_number_files
         doxygen/tfpsacrypto.doxyfile)
 foreach(file ${version_number_files})
     configure_file(${file}.in
-                   ${PROJECT_BINARY_DIR}/${file})
+                   ${CMAKE_BINARY_DIR}/${file})
 endforeach(file)
 
 ADD_CUSTOM_TARGET(${TF_PSA_CRYPTO_TARGET_PREFIX}tfpsacrypto-apidoc
     COMMAND doxygen tfpsacrypto.doxyfile
-    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/doxygen)
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/doxygen)
 
 option(ENABLE_PROGRAMS "Build TF-PSA-Crypto programs." ON)
 
