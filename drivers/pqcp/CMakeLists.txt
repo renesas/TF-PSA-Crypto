@@ -9,6 +9,6 @@ include(${PROJECT_SOURCE_DIR}/drivers/driver.cmake)
 foreach (target IN LISTS target_libraries)
     target_include_directories(${target}
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
-        PRIVATE mldsa-native/mldsa
+        PRIVATE ${MLDSA_NATIVE_DIR}/mldsa
     )
 endforeach(target)

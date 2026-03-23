@@ -64,6 +64,9 @@ endif()
 
 # Set the project, Mbed TLS and framework root directory.
 set(TF_PSA_CRYPTO_FRAMEWORK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/framework)
+if (NOT DEFINED MLDSA_NATIVE_DIR)
+    set(MLDSA_NATIVE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/drivers/pqcp/mldsa-native/)
+endif()
 
 # Put the version numbers into relevant files
 set(version_number_files
