@@ -14,6 +14,7 @@
 #include "psa_crypto_cipher.h"
 #include "psa_crypto_core.h"
 #include "psa_crypto_driver_wrappers_no_static.h"
+#include "psa/crypto_accel_driver.h"
 #include "psa_crypto_hash.h"
 #include "psa_crypto_mac.h"
 #include "psa_crypto_pake.h"
@@ -23,7 +24,7 @@
 #include "mbedtls/constant_time.h"
 /* END-common headers */
 
-#if defined(MBEDTLS_PSA_CRYPTO_C)
+#if defined(MBEDTLS_PSA_CRYPTO_C) || defined(MCUBOOT_USE_PSA_CRYPTO)
 
 /* BEGIN-driver headers */
 {% for driver in drivers -%}
@@ -263,7 +264,7 @@ static inline psa_status_t psa_driver_wrapper_sign_hash(
             if( status != PSA_ERROR_NOT_SUPPORTED )
                 return( status );
 #endif /* PSA_CRYPTO_DRIVER_TEST */
-#if defined (MBEDTLS_PSA_P256M_DRIVER_ENABLED)
+    #if defined (MBEDTLS_PSA_P256M_DRIVER_ENABLED)
             if( PSA_KEY_TYPE_IS_ECC( psa_get_key_type(attributes) ) &&
                 PSA_ALG_IS_RANDOMIZED_ECDSA(alg) &&
                 PSA_KEY_TYPE_ECC_GET_FAMILY(psa_get_key_type(attributes)) == PSA_ECC_FAMILY_SECP_R1 &&
@@ -282,6 +283,15 @@ static inline psa_status_t psa_driver_wrapper_sign_hash(
                 return( status );
             }
 #endif /* MBEDTLS_PSA_P256M_DRIVER_ENABLED */
+
+#if defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)
+#ifndef PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
+#define PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
+#endif
+
+// other definitions here
+
+#endif
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
             /* Fell through, meaning no accelerator supports this operation */
             return( psa_sign_hash_builtin( attributes,
@@ -722,6 +732,21 @@ static inline psa_status_t psa_driver_wrapper_generate_key(
                 }
 
 #endif /* MBEDTLS_PSA_P256M_DRIVER_ENABLED */
+#if defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)
+                /* To-do */
+                if( PSA_KEY_TYPE_IS_ECC( psa_get_key_type(attributes) ) &&
+                    psa_get_key_type(attributes) == PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1) &&
+                    psa_get_key_bits(attributes) == 256 )
+                {
+                    status = p256_transparent_generate_key( attributes,
+                                                            key_buffer,
+                                                            key_buffer_size,
+                                                            key_buffer_length );
+                    if( status != PSA_ERROR_NOT_SUPPORTED )
+                        break;
+                }
+
+#endif /* MBEDTLS_PSA_RENESAS_DRIVER_ENABLED */
             }
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
 
@@ -2519,6 +2544,26 @@ static inline psa_status_t psa_driver_wrapper_key_agreement(
                     return( status );
             }
 #endif /* MBEDTLS_PSA_P256M_DRIVER_ENABLED */
+#if defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)
+/* To-do */
+            if( PSA_KEY_TYPE_IS_ECC( psa_get_key_type(attributes) ) &&
+                PSA_ALG_IS_ECDH(alg) &&
+                PSA_KEY_TYPE_ECC_GET_FAMILY(psa_get_key_type(attributes)) == PSA_ECC_FAMILY_SECP_R1 &&
+                psa_get_key_bits(attributes) == 256 )
+            {
+                status = p256_transparent_key_agreement( attributes,
+                                                         key_buffer,
+                                                         key_buffer_size,
+                                                         alg,
+                                                         peer_key,
+                                                         peer_key_length,
+                                                         shared_secret,
+                                                         shared_secret_size,
+                                                         shared_secret_length );
+                if( status != PSA_ERROR_NOT_SUPPORTED)
+                    return( status );
+            }
+#endif /* MBEDTLS_PSA_RENESAS_DRIVER_ENABLED */
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
 
             /* Software Fallback */
