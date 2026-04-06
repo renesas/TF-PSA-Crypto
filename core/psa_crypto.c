@@ -1334,7 +1334,7 @@ psa_status_t psa_get_key_attributes(mbedtls_svc_key_id_t key,
     return psa_unregister_read_under_mutex(slot);
 }
 
-static psa_status_t psa_export_key_buffer_internal(const uint8_t *key_buffer,
+psa_status_t psa_export_key_buffer_internal(const uint8_t *key_buffer,
                                                    size_t key_buffer_size,
                                                    uint8_t *data,
                                                    size_t data_size,
