@@ -499,24 +499,9 @@
  */
 #define PSA_KEY_TYPE_AES                            ((psa_key_type_t) 0x2400)
 
-/** Whether a key type is AES; plaintext or wrapped. */
-#define PSA_KEY_TYPE_IS_AES(type) ((((type) == PSA_KEY_TYPE_AES) != 0) || \
-		(((type) == (PSA_KEY_TYPE_VENDOR_FLAG | PSA_KEY_TYPE_AES)) != 0))
-
 /** Key for a cipher, AEAD or MAC algorithm based on the
  * ARIA block cipher. */
 #define PSA_KEY_TYPE_ARIA                           ((psa_key_type_t) 0x2406)
-
-/** Key for a cipher or MAC algorithm based on DES or 3DES (Triple-DES).
- *
- * The size of the key can be 64 bits (single DES), 128 bits (2-key 3DES) or
- * 192 bits (3-key 3DES).
- *
- * Note that single DES and 2-key 3DES are weak and strongly
- * deprecated and should only be used to decrypt legacy data. 3-key 3DES
- * is weak and deprecated and should only be used in legacy protocols.
- */
-#define PSA_KEY_TYPE_DES                            ((psa_key_type_t) 0x2301)
 
 /** Key for a cipher, AEAD or MAC algorithm based on the
  * Camellia block cipher. */
@@ -2360,11 +2345,6 @@
  * See ::psa_key_lifetime_t for more information.
  */
 #define PSA_KEY_LIFETIME_PERSISTENT             ((psa_key_lifetime_t) 0x00000001)
-
-#define PSA_KEY_LIFETIME_IS_PERSISTENT(lifetime) \
-    (((lifetime) & PSA_KEY_LIFETIME_PERSISTENT) != 0)
-
-#define PSA_KEY_LIFETIME_VENDOR_FLAG ((psa_key_lifetime_t)0x80000000)
 
 /** The persistence level of volatile keys.
  *
