@@ -77,7 +77,7 @@ psa_status_t psa_import_key_into_slot_vendor(const psa_key_attributes_t * attrib
  *
  * \param[in] slot
  * \param[in] bits
- * \param[in] params
+ * \param[in] custom_data
  * \param[in] params_data_length
  *
  *
@@ -91,7 +91,7 @@ psa_status_t psa_import_key_into_slot_vendor(const psa_key_attributes_t * attrib
  */
 psa_status_t psa_generate_key_vendor (psa_key_slot_t * slot,
                                       size_t           bits,
-									  const psa_key_production_parameters_t *params,
+                                      const uint8_t *custom_data,
 									  size_t params_data_length);
 
 /**

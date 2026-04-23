@@ -14,10 +14,11 @@
 #define MBEDTLS_ML_DSA_H
 #include "mbedtls/private_access.h"
 
-#include "mbedtls/build_info.h"
+#include "tf-psa-crypto/build_info.h"
+// #include "mbedtls/build_info.h"
 #include "mbedtls/platform_util.h"
 
-#include "mbedtls/bignum.h"
+#include "mbedtls/private/bignum.h"
 #include "mbedtls/md.h"
 
 #ifdef __cplusplus

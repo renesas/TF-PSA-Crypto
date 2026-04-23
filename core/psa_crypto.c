@@ -8617,7 +8617,6 @@ psa_status_t psa_encapsulate(psa_key_id_t key,
     psa_key_slot_t *slot = NULL;
     psa_key_usage_t usage = PSA_KEY_USAGE_ENCAPSULATE;
     psa_key_slot_t *output_slot = NULL;
-    psa_se_drv_table_entry_t *output_driver = NULL;
     size_t output_key_buffer_size = PSA_ML_KEM_SHARED_SECRET_SIZE;
     
     if (!PSA_ALG_IS_KEY_ENCAPSULATION(alg)) {
@@ -8640,8 +8639,7 @@ psa_status_t psa_encapsulate(psa_key_id_t key,
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    status = psa_start_key_creation(PSA_KEY_CREATION_GENERATE, attributes,
-                                    &output_slot, &output_driver);
+    status = psa_start_key_creation(attributes, &output_slot);
     if (status != PSA_SUCCESS) {
         goto exit;
     }
@@ -8670,10 +8668,10 @@ psa_status_t psa_encapsulate(psa_key_id_t key,
 
 exit:
     if (status == PSA_SUCCESS) {
-        status = psa_finish_key_creation(output_slot, output_driver, output_key);
+        status = psa_finish_key_creation(output_slot, output_key);
     }
     if (status != PSA_SUCCESS) {
-        psa_fail_key_creation(output_slot, output_driver);
+        psa_fail_key_creation(output_slot);
     }
 
     return status;
@@ -8690,7 +8688,6 @@ psa_status_t psa_decapsulate(psa_key_id_t key,
     psa_key_slot_t *slot = NULL;
     psa_key_usage_t usage = PSA_KEY_USAGE_DECAPSULATE;
     psa_key_slot_t *output_slot = NULL;
-    psa_se_drv_table_entry_t *output_driver = NULL;
     size_t output_key_buffer_size = PSA_ML_KEM_SHARED_SECRET_SIZE;
     
     if (!PSA_ALG_IS_KEY_ENCAPSULATION(alg)) {
@@ -8713,8 +8710,7 @@ psa_status_t psa_decapsulate(psa_key_id_t key,
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
-    status = psa_start_key_creation(PSA_KEY_CREATION_GENERATE, attributes,
-                                    &output_slot, &output_driver);
+    status = psa_start_key_creation(attributes, &output_slot);
     if (status != PSA_SUCCESS) {
         goto exit;
     }
@@ -8742,10 +8738,10 @@ psa_status_t psa_decapsulate(psa_key_id_t key,
 
 exit:
     if (status == PSA_SUCCESS) {
-        status = psa_finish_key_creation(output_slot, output_driver, output_key);
+        status = psa_finish_key_creation(output_slot, output_key);
     }
     if (status != PSA_SUCCESS) {
-        psa_fail_key_creation(output_slot, output_driver);
+        psa_fail_key_creation(output_slot);
     }
 
     return status;
