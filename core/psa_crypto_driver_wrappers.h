@@ -45,6 +45,7 @@
 /* Headers for renesas RSA transparent driver */
 #if defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)
 #include "../drivers/renesas/renesas_driver_entrypoints.h"
+#endif
 
 /* Include TF-M builtin key driver */
 #if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
@@ -854,7 +855,7 @@ static inline psa_status_t psa_driver_wrapper_generate_key(
                 //         break;
                 // }
 
-#endif /* MBEDTLS_PSA_P256M_DRIVER_ENABLED */
+#endif /* MBEDTLS_PSA_RENESAS_DRIVER_ENABLED */
             }
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
 
@@ -3045,7 +3046,7 @@ static inline psa_status_t psa_driver_wrapper_key_agreement(
             //     if( status != PSA_ERROR_NOT_SUPPORTED)
             //         return( status );
             // }
-#endif /* MBEDTLS_PSA_P256M_DRIVER_ENABLED */
+#endif /* MBEDTLS_PSA_RENESAS_DRIVER_ENABLED */
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
 
             /* Software Fallback */

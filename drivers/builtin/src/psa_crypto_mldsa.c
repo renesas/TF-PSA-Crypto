@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
-#include "common.h"
+#include "tf_psa_crypto_common.h"
 
 #if defined(MBEDTLS_PSA_CRYPTO_C)
 
@@ -18,10 +18,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "mbedtls/oid.h"
+#include "crypto_oid.h"
 #include "mbedtls/platform.h"
-#include <mbedtls/mldsa.h>
-#include <mbedtls/error.h>
+#include "mbedtls/private/mldsa.h"
+#include "mbedtls/private/error_common.h"
 
 #if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_GENERATE) || \
     defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN) || \

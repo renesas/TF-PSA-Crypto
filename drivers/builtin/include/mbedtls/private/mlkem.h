@@ -15,10 +15,10 @@
 #define MBEDTLS_MLKEM_H
 #include "mbedtls/private_access.h"
 
-#include "mbedtls/build_info.h"
+#include "tf-psa-crypto/build_info.h"
 #include "mbedtls/platform_util.h"
 
-#include "mbedtls/bignum.h"
+#include "mbedtls/private/bignum.h"
 
 #ifdef __cplusplus
 extern "C" {

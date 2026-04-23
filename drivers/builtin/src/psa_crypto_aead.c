@@ -64,8 +64,7 @@ static psa_status_t psa_aead_setup(
         temp_keytype = (psa_key_type_t)(attributes->type);
     }
 
-    status = mbedtls_cipher_values_from_psa(alg, temp_keytype,
-                                            &key_bits, &mode, &cipher_id);
+    status = mbedtls_cipher_values_from_psa(alg, temp_keytype, &mode, &cipher_id);
     if (status != PSA_SUCCESS) {
         return status;
     }
