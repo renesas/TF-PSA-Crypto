@@ -12,7 +12,7 @@
 
 #include "tf_psa_crypto_common.h"
 
-#if defined(MBEDTLS_CTR_DRBG_C)
+#if !defined(MBEDTLS_CTR_DRBG_C_ALT)
 
 #include "ctr.h"
 #include "mbedtls/private/ctr_drbg.h"
