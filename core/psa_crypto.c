@@ -686,6 +686,36 @@ psa_status_t psa_import_key_into_slot(
 
         return PSA_SUCCESS;
     } else if (PSA_KEY_TYPE_IS_ASYMMETRIC(type)) {
+#if defined(TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED)
+        if (PSA_KEY_TYPE_IS_ML_DSA(type)) {
+            /* The PSA API uses the 32-byte seed as the key pair
+             * representation, and the full packed public key as the
+             * public key representation. */
+            if (*bits == 0) {
+                return PSA_ERROR_INVALID_ARGUMENT;
+            }
+
+            if (*bits == 87) {
+                if (PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
+                    if (data_length != 32) {
+                        return PSA_ERROR_INVALID_ARGUMENT;
+                    }
+                } else {
+                    if (data_length != 2592) {
+                        return PSA_ERROR_INVALID_ARGUMENT;
+                    }
+                }
+            } else {
+                return PSA_ERROR_NOT_SUPPORTED;
+            }
+
+            memcpy(key_buffer, data, data_length);
+            *key_buffer_length = data_length;
+            (void) key_buffer_size;
+
+            return PSA_SUCCESS;
+        }
+#endif
 #if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_DH_KEY_PAIR_IMPORT) || \
         defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_DH_PUBLIC_KEY)
         if (PSA_KEY_TYPE_IS_DH(type)) {
@@ -1349,7 +1379,8 @@ psa_status_t psa_export_key_internal(
     if (key_type_is_raw_bytes(type) ||
         PSA_KEY_TYPE_IS_RSA(type)   ||
         PSA_KEY_TYPE_IS_ECC(type)   ||
-        PSA_KEY_TYPE_IS_DH(type)) {
+        PSA_KEY_TYPE_IS_DH(type)    ||
+        PSA_KEY_TYPE_IS_ML_DSA(type)) {
         return psa_export_key_buffer_internal(
             key_buffer, key_buffer_size,
             data, data_size, data_length);
@@ -1421,7 +1452,7 @@ psa_status_t psa_export_public_key_internal(
 
     if (PSA_KEY_TYPE_IS_PUBLIC_KEY(type) &&
         (PSA_KEY_TYPE_IS_RSA(type) || PSA_KEY_TYPE_IS_ECC(type) ||
-         PSA_KEY_TYPE_IS_DH(type))) {
+         PSA_KEY_TYPE_IS_DH(type) || PSA_KEY_TYPE_IS_ML_DSA(type))) {
         /* Exporting public -> public */
         return psa_export_key_buffer_internal(
             key_buffer, key_buffer_size,
@@ -3067,10 +3098,12 @@ static psa_status_t psa_sign_verify_check_alg(int input_is_message,
 
     /* Now hash_alg==0 if alg by itself doesn't need a hash.
      * This is good enough for sign-hash, but a guaranteed failure for
-     * sign-message which needs to hash first for all algorithms
-     * supported at the moment. */
-
-    if (hash_alg == 0 && input_is_message) {
+     * sign-message which needs to hash first for all sign-hash algorithms.
+     * Pure algorithms (PureEdDSA, pure ML-DSA) sign the message directly
+     * without a separate pre-hashing step, so they are allowed. */
+    if (hash_alg == 0 && input_is_message
+        && alg != PSA_ALG_PURE_EDDSA
+        && !PSA_ALG_IS_ML_DSA(alg)) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
     if (hash_alg == PSA_ALG_ANY_HASH) {
@@ -3243,6 +3276,17 @@ psa_status_t psa_sign_message_builtin(
             alg, hash, hash_length,
             signature, signature_size, signature_length);
     }
+#if defined(TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED)
+    else if (PSA_ALG_IS_ML_DSA(alg)) {
+        status = tf_psa_crypto_mldsa_sign_message(
+                    attributes,
+                    key_buffer, key_buffer_size,
+                    alg,
+                    input, input_length,
+                    signature, signature_size, signature_length);
+        return status;
+    }
+#endif
 
     return PSA_ERROR_NOT_SUPPORTED;
 }
@@ -3302,6 +3346,17 @@ psa_status_t psa_verify_message_builtin(
             alg, hash, hash_length,
             signature, signature_length);
     }
+#if defined(TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED)
+    else if (PSA_ALG_IS_ML_DSA(alg)) {
+        status = tf_psa_crypto_mldsa_verify_message(
+                    attributes,
+                    key_buffer, key_buffer_size,
+                    alg,
+                    input, input_length,
+                    signature, signature_length);
+        return status;
+    }
+#endif
 
     return PSA_ERROR_NOT_SUPPORTED;
 }
