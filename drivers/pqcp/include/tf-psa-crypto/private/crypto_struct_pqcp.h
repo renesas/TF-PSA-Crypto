@@ -18,6 +18,8 @@
 
 #if defined(TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED)
 
+#define MBEDTLS_PSA_STATIC_KEY_SLOT_BUFFER_SIZE (2594)
+
 /* No context structures yet. */
 
 #endif /* TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED */
