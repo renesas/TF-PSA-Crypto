@@ -1022,6 +1022,11 @@
 #define PSA_EXPORT_PUBLIC_KEY_MAX_SIZE    \
     PSA_KEY_EXPORT_FFDH_PUBLIC_KEY_MAX_SIZE(PSA_VENDOR_FFDH_MAX_KEY_BITS)
 #endif
+/* ML-DSA-87 public key is 2592 bytes — largest PQC public key currently supported */
+#if defined(PSA_WANT_KEY_TYPE_ML_DSA_PUBLIC_KEY) && (2592 > PSA_EXPORT_PUBLIC_KEY_MAX_SIZE)
+#undef PSA_EXPORT_PUBLIC_KEY_MAX_SIZE
+#define PSA_EXPORT_PUBLIC_KEY_MAX_SIZE    2592
+#endif
 
 /* This is the name that was standardized in PSA Crypto v1.3 */
 #define PSA_EXPORT_ASYMMETRIC_KEY_MAX_SIZE \
