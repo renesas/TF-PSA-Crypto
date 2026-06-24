@@ -19,6 +19,10 @@
 #include "psa_crypto_pake.h"
 #include "psa_crypto_rsa.h"
 
+#if defined(TF_PSA_CRYPTO_PQCP_MLDSA_ENABLED)
+#include "psa_crypto_mldsa.h"
+#endif
+
 #include "mbedtls/platform.h"
 /* END-common headers */
 
@@ -40,27 +44,11 @@
 #include "../drivers/p256-m/p256-m_driver_entrypoints.h"
 
 #endif
+/* Headers for renesas transparent driver */
+#if defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)
+#include "../drivers/renesas/renesas_driver_entrypoints.h"
 
-/* Include TF-M builtin key driver */
-#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
-#ifndef PSA_CRYPTO_DRIVER_PRESENT
-#define PSA_CRYPTO_DRIVER_PRESENT
 #endif
-#ifndef PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
-#define PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
-#endif
-#include "tfm_builtin_key_loader.h"
-#endif /* PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER */
-
-#if defined(PSA_CRYPTO_DRIVER_CC3XX)
-#ifndef PSA_CRYPTO_DRIVER_PRESENT
-#define PSA_CRYPTO_DRIVER_PRESENT
-#endif
-#ifndef PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
-#define PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT
-#endif
-#include "cc3xx.h"
-#endif /* PSA_CRYPTO_DRIVER_CC3XX */
 
 /* END-driver headers */
 
@@ -68,18 +56,11 @@
  * ID 0 is reserved for unallocated operations.
  * ID 1 is reserved for the Mbed TLS software driver. */
 /* BEGIN-driver id definition */
-enum {
-    PSA_CRYPTO_MBED_TLS_DRIVER_ID = 1,
-    MBEDTLS_TEST_OPAQUE_DRIVER_ID,
-    MBEDTLS_TEST_TRANSPARENT_DRIVER_ID,
-    P256_TRANSPARENT_DRIVER_ID,
-#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
-    PSA_CRYPTO_TFM_BUILTIN_KEY_LOADER_DRIVER_ID,
-#endif /* PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER */
-#if defined(PSA_CRYPTO_DRIVER_CC3XX)
-    PSA_CRYPTO_CC3XX_DRIVER_ID,
-#endif /* PSA_CRYPTO_DRIVER_CC3XX */
-};
+#define PSA_CRYPTO_MBED_TLS_DRIVER_ID (1)
+#define MBEDTLS_TEST_OPAQUE_DRIVER_ID (2)
+#define MBEDTLS_TEST_TRANSPARENT_DRIVER_ID (3)
+#define P256_TRANSPARENT_DRIVER_ID (4)
+#define RENESAS_TRANSPARENT_DRIVER_ID (5)
 
 /* END-driver id */
 
@@ -131,12 +112,6 @@ psa_status_t psa_driver_wrapper_get_key_buffer_size(
                     PSA_SUCCESS : PSA_ERROR_NOT_SUPPORTED );
 #endif /* PSA_CRYPTO_DRIVER_TEST */
 
-#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
-        case TFM_BUILTIN_KEY_LOADER_KEY_LOCATION:
-            return tfm_builtin_key_loader_get_key_buffer_size(psa_get_key_id(attributes),
-                                                              key_buffer_size);
-#endif /* PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER */
-
         default:
             (void)key_type;
             (void)key_bits;
@@ -158,9 +133,6 @@ psa_status_t psa_driver_wrapper_export_public_key(
     switch( location )
     {
         case PSA_KEY_LOCATION_LOCAL_STORAGE:
-#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
-        case TFM_BUILTIN_KEY_LOADER_KEY_LOCATION:
-#endif /* defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER) */
             /* Key is stored in the slot in export representation, so
              * cycle through all known transparent accelerators */
 #if defined(PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT)
@@ -179,19 +151,22 @@ psa_status_t psa_driver_wrapper_export_public_key(
                 return( status );
 #endif
 
-#if defined(PSA_CRYPTO_DRIVER_CC3XX)
-            status = cc3xx_export_public_key(
-                         attributes,
-                         key_buffer,
-                         key_buffer_size,
-                         data,
-                         data_size,
-                         data_length );
-            return( status );
-#endif /* PSA_CRYPTO_DRIVER_CC3XX */
-
 #if (defined(MBEDTLS_PSA_P256M_DRIVER_ENABLED) )
             status = p256_transparent_export_public_key
+                (attributes,
+                                key_buffer,
+                                key_buffer_size,
+                                data,
+                                data_size,
+                                data_length
+            );
+
+            if( status != PSA_ERROR_NOT_SUPPORTED )
+                return( status );
+#endif
+
+#if (defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED) )
+            status = renesas_transparent_export_public_key
                 (attributes,
                                 key_buffer,
                                 key_buffer_size,
@@ -260,13 +235,6 @@ psa_status_t psa_driver_wrapper_get_builtin_key(
         ));
 #endif
 
-#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
-        case TFM_BUILTIN_KEY_LOADER_KEY_LOCATION:
-            return( tfm_builtin_key_loader_get_builtin_key(
-                        slot_number,
-                        attributes,
-                        key_buffer, key_buffer_size, key_buffer_length ) );
-#endif /* PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER */
 
 #endif /* PSA_CRYPTO_ACCELERATOR_DRIVER_PRESENT */
         default:
