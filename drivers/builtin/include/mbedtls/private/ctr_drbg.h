@@ -30,6 +30,16 @@
 
 #include "tf-psa-crypto/build_info.h"
 
+/* When an alternate CTR_DRBG implementation is used, pull in aes_alt.h before
+ * aes.h so that mbedtls_aes_context resolves to the ALT layout (288 bytes)
+ * rather than the standard layout (280 bytes). Without this, psa_crypto.c
+ * would embed a standard aes_context in mbedtls_ctr_drbg_context while
+ * ctr_drbg_alt.c uses the ALT aes_context — an 8-byte size mismatch that
+ * places f_entropy/p_entropy at wrong offsets and breaks entropy seeding. */
+#if defined(MBEDTLS_CTR_DRBG_C_ALT)
+#include "aes_alt.h"
+#endif
+
 /* The CTR_DRBG implementation can either directly call the low-level AES
  * module (gated by MBEDTLS_AES_C) or call the PSA API to perform AES
  * operations. Calling the AES module directly is the default, both for
