@@ -191,6 +191,11 @@ psa_status_t mbedtls_cipher_values_from_psa(
                 *mode = MBEDTLS_MODE_CHACHAPOLY;
                 break;
 #endif
+
+            case PSA_ALG_XTS:
+                *mode = MBEDTLS_MODE_XTS;
+                break;
+
             default:
                 return PSA_ERROR_NOT_SUPPORTED;
         }
@@ -311,8 +316,27 @@ static psa_status_t psa_cipher_setup(
 
     operation->alg = alg;
     key_bits = attributes->bits;
+#if defined (MBEDTLS_CIPHER_ALT)
+#if defined (MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+    if (PSA_KEY_TYPE_IS_VENDOR_DEFINED(key_type))
+    {
+        ret = vendor_bitlength_to_raw_bitlength(key_type, key_bits, &key_bits);
+        if (ret != PSA_SUCCESS)
+        {
+            return ret;
+        }
+        cipher_info = mbedtls_cipher_info_from_psa(alg,
+                                                  (psa_key_type_t) (key_type & ~PSA_KEY_TYPE_VENDOR_FLAG),
+                                                   key_bits,
+                                                   NULL);
+    }
+    else
+#endif /* MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C */
+#endif
+    {
     cipher_info = mbedtls_cipher_info_from_psa(alg, key_type,
                                                key_bits, NULL);
+    }
     if (cipher_info == NULL) {
         return PSA_ERROR_NOT_SUPPORTED;
     }
@@ -322,6 +346,16 @@ static psa_status_t psa_cipher_setup(
         goto exit;
     }
 
+#if defined (MBEDTLS_CIPHER_ALT)
+#if defined (MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+    if (PSA_KEY_TYPE_IS_VENDOR_DEFINED(key_type))
+    {
+        void * p_aes_ctx = NULL;
+        p_aes_ctx   = operation->ctx.cipher.cipher_ctx;
+        psa_aead_setup_vendor(p_aes_ctx);
+    }
+#endif /* MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C */
+#endif
     {
         ret = mbedtls_cipher_setkey(&operation->ctx.cipher, key_buffer,
                                     (int) key_bits, cipher_operation);

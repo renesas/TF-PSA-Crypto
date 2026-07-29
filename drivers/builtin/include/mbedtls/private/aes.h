@@ -57,6 +57,11 @@ extern "C" {
 /**
  * \brief The AES context-type definition.
  */
+/* When an alternate AES context has already been provided by aes_alt.h
+ * (included first, e.g. via ctr_drbg_alt.h), skip this standard definition
+ * to avoid a conflicting-types redefinition error. The alternate context must
+ * be compatible in size wherever both headers could be in scope. */
+#if !defined(MBEDTLS_AES_ALT_H)
 typedef struct mbedtls_aes_context {
     int MBEDTLS_PRIVATE(nr);                     /*!< The number of rounds. */
     size_t MBEDTLS_PRIVATE(rk_offset);           /*!< The offset in array elements to AES
@@ -72,6 +77,7 @@ typedef struct mbedtls_aes_context {
 #endif /* MBEDTLS_AES_ONLY_128_BIT_KEY_LENGTH */
 }
 mbedtls_aes_context;
+#endif /* !MBEDTLS_AES_ALT_H */
 
 #if defined(MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS)
 #if defined(MBEDTLS_CIPHER_MODE_XTS)

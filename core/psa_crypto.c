@@ -24,6 +24,8 @@
 #include "psa_crypto_ffdh.h"
 #include "psa_crypto_hash.h"
 #include "psa_crypto_mac.h"
+#include "psa_crypto_mldsa.h"
+#include "psa_crypto_mlkem.h"
 #include "psa_crypto_rsa.h"
 #include "psa_crypto_ecp.h"
 #include "psa_crypto_slot_management.h"
@@ -54,6 +56,7 @@
 #include "mbedtls/private/error_common.h"
 #include "mbedtls/private/gcm.h"
 #include "mbedtls/private/md5.h"
+#include "mbedtls/private/mlkem.h"
 #include "mbedtls/pk.h"
 #if defined(MBEDTLS_PK_HAVE_PRIVATE_HEADER)
 #include <mbedtls/private/pk_private.h>
@@ -71,6 +74,11 @@
 #include "threading_internal.h"
 
 #include "constant_time_internal.h"
+
+#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
+#include "tfm_crypto_defs.h"
+#include "tfm_builtin_key_loader.h"
+#endif /* PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER */
 
 #if defined(MBEDTLS_PSA_BUILTIN_ALG_HKDF) ||          \
     defined(MBEDTLS_PSA_BUILTIN_ALG_HKDF_EXTRACT) ||  \
@@ -724,6 +732,28 @@ psa_status_t psa_import_key_into_slot(
 #endif /* (defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_RSA_KEY_PAIR_IMPORT) &&
            defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_RSA_KEY_PAIR_EXPORT)) ||
         * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_RSA_PUBLIC_KEY) */
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_IMPORT) || \
+        defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_PUBLIC_KEY)
+        if (PSA_KEY_TYPE_IS_ML_KEM(type)) {
+            return mbedtls_psa_mlkem_import_key(attributes,
+                                                data, data_length,
+                                                key_buffer, key_buffer_size,
+                                                key_buffer_length,
+                                                bits);
+        }
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_IMPORT) ||
+        * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_IMPORT) */
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_IMPORT) || \
+        defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_PUBLIC_KEY)
+        if (PSA_KEY_TYPE_IS_ML_DSA(type)) {
+            return mbedtls_psa_mldsa_import_key(attributes,
+                                                data, data_length,
+                                                key_buffer, key_buffer_size,
+                                                key_buffer_length,
+                                                bits);
+        }
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_IMPORT) ||
+        * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_PUBLIC_KEY) */
     }
 
     return PSA_ERROR_NOT_SUPPORTED;
@@ -1103,7 +1133,12 @@ static psa_status_t psa_get_and_lock_transparent_key_slot_with_policy(
         return status;
     }
 
-    if (psa_key_lifetime_is_external((*p_slot)->attr.lifetime)) {
+    if( psa_key_lifetime_is_external( (*p_slot)->attr.lifetime )
+#if defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER)
+        && PSA_KEY_LIFETIME_GET_LOCATION((*p_slot)->attr.lifetime) != TFM_BUILTIN_KEY_LOADER_KEY_LOCATION
+#endif /* defined(PSA_CRYPTO_DRIVER_TFM_BUILTIN_KEY_LOADER) */
+        )
+    {
         psa_unregister_read_under_mutex(*p_slot);
         *p_slot = NULL;
         return PSA_ERROR_NOT_SUPPORTED;
@@ -1323,7 +1358,7 @@ psa_status_t psa_get_key_attributes(mbedtls_svc_key_id_t key,
     return psa_unregister_read_under_mutex(slot);
 }
 
-static psa_status_t psa_export_key_buffer_internal(const uint8_t *key_buffer,
+psa_status_t psa_export_key_buffer_internal(const uint8_t *key_buffer,
                                                    size_t key_buffer_size,
                                                    uint8_t *data,
                                                    size_t data_size,
@@ -1349,10 +1384,54 @@ psa_status_t psa_export_key_internal(
     if (key_type_is_raw_bytes(type) ||
         PSA_KEY_TYPE_IS_RSA(type)   ||
         PSA_KEY_TYPE_IS_ECC(type)   ||
-        PSA_KEY_TYPE_IS_DH(type)) {
+        PSA_KEY_TYPE_IS_DH(type)    ||
+        (PSA_KEY_TYPE_IS_ML_KEM(type) && PSA_KEY_TYPE_IS_PUBLIC_KEY(type)) ||
+        (PSA_KEY_TYPE_IS_ML_DSA(type) && PSA_KEY_TYPE_IS_PUBLIC_KEY(type))) {
         return psa_export_key_buffer_internal(
             key_buffer, key_buffer_size,
             data, data_size, data_length);
+    } else if (PSA_KEY_TYPE_IS_ML_KEM(type)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_EXPORT)
+        psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
+        mbedtls_mlkem_context *mlkem = NULL;
+
+        status = mbedtls_psa_mlkem_load_representation(
+            type, attributes->bits,
+            key_buffer, key_buffer_size, &mlkem);
+        if (status != PSA_SUCCESS) {
+            goto exit;
+        }
+
+        status = mbedtls_psa_mlkem_export_key(PSA_KEY_TYPE_ML_KEM_KEY_PAIR, attributes->bits, mlkem, data, data_size, data_length);
+exit:
+        if (status != PSA_SUCCESS) {
+            mbedtls_free(mlkem);
+        }
+        return status;
+#else
+        /* We don't know how to export a MLKEM key. */
+        return PSA_ERROR_NOT_SUPPORTED;
+#endif /* MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_EXPORT */
+    } else if (PSA_KEY_TYPE_IS_ML_DSA(type)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_EXPORT)
+        psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
+        mbedtls_mldsa_context *mldsa = NULL;
+
+        status = mbedtls_psa_mldsa_load_representation(type, attributes->bits, key_buffer, key_buffer_size, &mldsa);
+        if (status != PSA_SUCCESS) {
+            goto exit2;
+        }
+
+        status = mbedtls_psa_mldsa_export_key(PSA_KEY_TYPE_ML_DSA_KEY_PAIR, attributes->bits, mldsa, data, data_size, data_length);
+exit2:
+        if (status != PSA_SUCCESS) {
+            mbedtls_free(mldsa);
+        }
+        return status;
+#else
+        /* We don't know how to export a MLDSA key. */
+        return PSA_ERROR_NOT_SUPPORTED;
+#endif /* MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_EXPORT */
     } else {
         /* This shouldn't happen in the reference implementation, but
            it is valid for a special-purpose implementation to omit
@@ -1421,7 +1500,7 @@ psa_status_t psa_export_public_key_internal(
 
     if (PSA_KEY_TYPE_IS_PUBLIC_KEY(type) &&
         (PSA_KEY_TYPE_IS_RSA(type) || PSA_KEY_TYPE_IS_ECC(type) ||
-         PSA_KEY_TYPE_IS_DH(type))) {
+         PSA_KEY_TYPE_IS_DH(type) || PSA_KEY_TYPE_IS_ML_KEM(type))) {
         /* Exporting public -> public */
         return psa_export_key_buffer_internal(
             key_buffer, key_buffer_size,
@@ -1466,6 +1545,32 @@ psa_status_t psa_export_public_key_internal(
         return PSA_ERROR_NOT_SUPPORTED;
 #endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_DH_KEY_PAIR_EXPORT) ||
         * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_DH_PUBLIC_KEY) */
+    } else if (PSA_KEY_TYPE_IS_ML_KEM(type)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_EXPORT) || \
+        defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_PUBLIC_KEY)
+        return mbedtls_psa_mlkem_export_public_key(attributes,
+                                                   key_buffer,
+                                                   key_buffer_size,
+                                                   data, data_size,
+                                                   data_length);
+#else
+        /* We don't know how to convert a private MLKEM key to public */
+        return PSA_ERROR_NOT_SUPPORTED;
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_EXPORT) ||
+        * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_PUBLIC_KEY) */
+    } else if (PSA_KEY_TYPE_IS_ML_DSA(type)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_EXPORT) || \
+        defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_PUBLIC_KEY)
+        return mbedtls_psa_mldsa_export_public_key(attributes,
+                                                   key_buffer,
+                                                   key_buffer_size,
+                                                   data, data_size,
+                                                   data_length);
+#else
+        /* We don't know how to convert a private MLKEM key to public */
+        return PSA_ERROR_NOT_SUPPORTED;
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_EXPORT) ||
+        * defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_PUBLIC_KEY) */
     } else {
         (void) key_buffer;
         (void) key_buffer_size;
@@ -1712,7 +1817,9 @@ static psa_status_t psa_validate_key_policy(const psa_key_policy_t *policy)
                            PSA_KEY_USAGE_SIGN_HASH |
                            PSA_KEY_USAGE_VERIFY_HASH |
                            PSA_KEY_USAGE_VERIFY_DERIVATION |
-                           PSA_KEY_USAGE_DERIVE)) != 0) {
+                           PSA_KEY_USAGE_DERIVE |
+                           PSA_KEY_USAGE_ENCAPSULATE |
+                           PSA_KEY_USAGE_DECAPSULATE)) != 0) {
         return PSA_ERROR_INVALID_ARGUMENT;
     }
 
@@ -1872,7 +1979,7 @@ static psa_status_t psa_start_key_creation(
  * \return If this function fails, the key slot is an invalid state.
  *         You must call psa_fail_key_creation() to wipe and free the slot.
  */
-static psa_status_t psa_finish_key_creation(
+psa_status_t psa_finish_key_creation(
     psa_key_slot_t *slot,
     mbedtls_svc_key_id_t *key)
 {
@@ -1886,11 +1993,20 @@ static psa_status_t psa_finish_key_creation(
 
 #if defined(MBEDTLS_PSA_CRYPTO_STORAGE_C)
     if (!PSA_KEY_LIFETIME_IS_VOLATILE(slot->attr.lifetime)) {
-        /* Key material is saved in export representation in the slot, so
-         * just pass the slot buffer for storage. */
-        status = psa_save_persistent_key(&slot->attr,
-                                         slot->key.data,
-                                         slot->key.bytes);
+#if defined (MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+    if (PSA_KEY_TYPE_IS_VENDOR_DEFINED(slot->attr.type))
+    {
+        status = psa_finish_key_creation_vendor( slot );
+    }
+    else
+#endif /* MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C */
+        {
+            /* Key material is saved in export representation in the slot, so
+             * just pass the slot buffer for storage. */
+            status = psa_save_persistent_key(&slot->attr,
+                                             slot->key.data,
+                                             slot->key.bytes);
+        }
     }
 #endif /* defined(MBEDTLS_PSA_CRYPTO_STORAGE_C) */
 
@@ -1999,6 +2115,14 @@ psa_status_t psa_import_key(const psa_key_attributes_t *attributes,
     if (status != PSA_SUCCESS) {
         goto exit;
     }
+
+#if defined (MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+    if (PSA_KEY_TYPE_IS_VENDOR_DEFINED(slot->attr.type))
+    {
+        status = psa_import_key_into_slot_vendor( attributes, slot, data, data_length, key, true );
+            goto exit;
+    }
+#endif /* MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C */
 
     /* In the case of a transparent key or an opaque key stored in local
      * storage,we have to allocate a buffer to hold the imported key material. */
@@ -2208,6 +2332,14 @@ static int is_hash_supported(psa_algorithm_t alg)
 #endif
 #if defined(PSA_WANT_ALG_SHA3_512)
         case PSA_ALG_SHA3_512:
+            return 1;
+#endif
+#if defined(PSA_WANT_ALG_SHAKE256)
+        case PSA_ALG_SHAKE256:
+            return 1;
+#endif
+#if defined(PSA_WANT_ALG_SHAKE256_512)
+        case PSA_ALG_SHAKE256_512:
             return 1;
 #endif
         default:
@@ -3058,6 +3190,10 @@ static psa_status_t psa_sign_verify_check_alg(int input_is_message,
         if (!PSA_ALG_IS_SIGN_MESSAGE(alg)) {
             return PSA_ERROR_INVALID_ARGUMENT;
         }
+
+        if (PSA_ALG_IS_ML_DSA(alg)) {
+            return PSA_SUCCESS;
+        }
     }
 
     psa_algorithm_t hash_alg = 0;
@@ -3225,7 +3361,19 @@ psa_status_t psa_sign_message_builtin(
 {
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 
-    if (PSA_ALG_IS_SIGN_HASH(alg)) {
+    if (PSA_ALG_IS_ML_DSA(alg)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN)
+        return mbedtls_psa_mldsa_sign_hash(attributes,
+                                           key_buffer,
+                                           key_buffer_size,
+                                           alg,
+                                           input,
+                                           input_length,
+                                           signature,
+                                           signature_size,
+                                           signature_length);
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN) */
+    } else if (PSA_ALG_IS_SIGN_HASH(alg)) {
         size_t hash_length;
         uint8_t hash[PSA_HASH_MAX_SIZE];
 
@@ -3284,7 +3432,18 @@ psa_status_t psa_verify_message_builtin(
 {
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
 
-    if (PSA_ALG_IS_SIGN_HASH(alg)) {
+    if (PSA_ALG_IS_ML_DSA(alg)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN)
+        return mbedtls_psa_mldsa_verify_hash(attributes,
+                                            key_buffer,
+                                            key_buffer_size,
+                                            alg,
+                                            input,
+                                            input_length,
+                                            signature,
+                                            signature_length);
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN) */
+    } else if (PSA_ALG_IS_SIGN_HASH(alg)) {
         size_t hash_length;
         uint8_t hash[PSA_HASH_MAX_SIZE];
 
@@ -3337,7 +3496,7 @@ psa_status_t psa_sign_hash_builtin(
     psa_algorithm_t alg, const uint8_t *hash, size_t hash_length,
     uint8_t *signature, size_t signature_size, size_t *signature_length)
 {
-    if (attributes->type == PSA_KEY_TYPE_RSA_KEY_PAIR) {
+    if( PSA_KEY_TYPE_IS_RSA_KEY_PAIR(attributes->type) ) {
         if (PSA_ALG_IS_RSA_PKCS1V15_SIGN(alg) ||
             PSA_ALG_IS_RSA_PSS(alg)) {
 #if defined(MBEDTLS_PSA_BUILTIN_ALG_RSA_PKCS1V15_SIGN) || \
@@ -3366,6 +3525,14 @@ psa_status_t psa_sign_hash_builtin(
         } else {
             return PSA_ERROR_INVALID_ARGUMENT;
         }
+    } else if (PSA_ALG_IS_ML_DSA(alg) || (PSA_ALG_IS_HASH_ML_DSA(alg))) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN)
+        return mbedtls_psa_mldsa_sign_hash(
+            attributes,
+            key_buffer, key_buffer_size,
+            alg, hash, hash_length,
+            signature, signature_size, signature_length);
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_SIGN) */
     }
 
     (void) key_buffer;
@@ -3440,6 +3607,14 @@ psa_status_t psa_verify_hash_builtin(
         } else {
             return PSA_ERROR_INVALID_ARGUMENT;
         }
+    } else if (PSA_ALG_IS_ML_DSA(alg) || PSA_ALG_IS_HASH_ML_DSA(alg)) {
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_VERIFY)
+        return mbedtls_psa_mldsa_verify_hash(
+            attributes,
+            key_buffer, key_buffer_size,
+            alg, hash, hash_length,
+            signature, signature_length);
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_VERIFY) */
     }
 
     (void) key_buffer;
@@ -8362,6 +8537,22 @@ static psa_status_t psa_validate_key_type_and_size_for_key_generation(
     } else
 #endif /* defined(PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE) */
 
+#if defined(PSA_WANT_KEY_TYPE_MLKEM_KEY_PAIR_GENERATE)
+    if (PSA_KEY_TYPE_IS_ML_KEM(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
+        /* To avoid empty block, return successfully here. */
+        // REVISIT: KF do we want logic here?
+        return PSA_SUCCESS;
+    } else
+#endif /* defined(PSA_WANT_KEY_TYPE_MLKEM_KEY_PAIR_GENERATE) */
+
+#if defined(PSA_WANT_KEY_TYPE_ML_DSA_KEY_PAIR_GENERATE)
+    if (PSA_KEY_TYPE_IS_ML_DSA(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
+        /* To avoid empty block, return successfully here. */
+        // REVISIT: KF do we want logic here?
+        return PSA_SUCCESS;
+    } else
+#endif /* defined(PSA_WANT_KEY_TYPE_ML_DSA_KEY_PAIR_GENERATE) */
+
 #if defined(PSA_WANT_KEY_TYPE_DH_KEY_PAIR_GENERATE)
     if (PSA_KEY_TYPE_IS_DH(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
         if (psa_is_dh_key_size_valid(bits) == 0) {
@@ -8418,6 +8609,24 @@ psa_status_t psa_generate_key_internal(
     } else
 #endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ECC_KEY_PAIR_GENERATE) */
 
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_GENERATE)
+    if (PSA_KEY_TYPE_IS_ML_KEM(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
+        return mbedtls_psa_mlkem_generate_key(attributes->bits,
+                                              key_buffer,
+                                              key_buffer_size,
+                                              key_buffer_length);
+    } else
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_PAIR_GENERATE) */
+
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_GENERATE)
+    if (PSA_KEY_TYPE_IS_ML_DSA(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
+        return mbedtls_psa_mldsa_generate_key(attributes,
+                                              key_buffer,
+                                              key_buffer_size,
+                                              key_buffer_length);
+    } else
+#endif /* defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_ML_DSA_KEY_PAIR_GENERATE) */
+
 #if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_DH_KEY_PAIR_GENERATE)
     if (PSA_KEY_TYPE_IS_DH(type) && PSA_KEY_TYPE_IS_KEY_PAIR(type)) {
         return mbedtls_psa_ffdh_generate_key(attributes,
@@ -8472,6 +8681,15 @@ psa_status_t psa_generate_key_custom(const psa_key_attributes_t *attributes,
     if (status != PSA_SUCCESS) {
         goto exit;
     }
+
+#if defined(MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C)
+    if (PSA_KEY_TYPE_IS_VENDOR_DEFINED(slot->attr.type))
+    {
+        status = psa_generate_key_vendor(slot, attributes->bits,
+        		                         (const uint8_t *)custom, custom_data_length);
+        goto exit;
+    }
+#endif /* MBEDTLS_PSA_CRYPTO_ACCEL_DRV_C */   
 
     /* In the case of a transparent key or an opaque key stored in local
      * storage, we have to allocate a buffer to hold the generated key material. */
@@ -8609,6 +8827,148 @@ exit:
     (void) attributes;
     return PSA_ERROR_NOT_SUPPORTED;
 #endif
+}
+
+psa_status_t psa_encapsulate(psa_key_id_t key,
+                             psa_algorithm_t alg,
+                             const psa_key_attributes_t * attributes,
+                             psa_key_id_t * output_key,
+                             uint8_t * ciphertext,
+                             size_t ciphertext_size,
+                             size_t * ciphertext_length)
+{
+    psa_status_t status = PSA_ERROR_NOT_SUPPORTED;
+    psa_key_slot_t *slot = NULL;
+    psa_key_usage_t usage = PSA_KEY_USAGE_ENCAPSULATE;
+    psa_key_slot_t *output_slot = NULL;
+    size_t output_key_buffer_size = PSA_ML_KEM_SHARED_SECRET_SIZE;
+    
+    if (!PSA_ALG_IS_KEY_ENCAPSULATION(alg)) {
+        status = PSA_ERROR_INVALID_ARGUMENT;
+        goto exit;
+    }
+
+    /* Look up the slot for the private key */
+    status = psa_get_and_lock_key_slot_with_policy(key, &slot, usage, alg);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    /* Set up a key slot for the new secret */
+    *output_key = MBEDTLS_SVC_KEY_ID_INIT;
+
+    /* Reject any attempt to create a zero-length key so that we don't
+     * risk tripping up later, e.g. on a malloc(0) that returns NULL. */
+    if (psa_get_key_bits(attributes) == 0) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    status = psa_start_key_creation(attributes, &output_slot);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    status = psa_allocate_buffer_to_slot(output_slot, output_key_buffer_size);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_ENCAPSULATE)
+    status = mbedtls_psa_mlkem_encapsulate(&slot->attr,
+                                           slot->key.data,
+                                           slot->key.bytes,
+                                           output_slot->key.data,
+                                           output_slot->key.bytes,
+                                           ciphertext,
+                                           ciphertext_size,
+                                           ciphertext_length);
+#else
+    status = PSA_ERROR_NOT_SUPPORTED;
+#endif /* MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_ENCAPSULATE */
+
+    if (status != PSA_SUCCESS) {
+        psa_remove_key_data_from_memory(output_slot);
+    }
+
+exit:
+    if (status == PSA_SUCCESS) {
+        status = psa_finish_key_creation(output_slot, output_key);
+    }
+    if (status != PSA_SUCCESS) {
+        psa_fail_key_creation(output_slot);
+    }
+
+    return status;
+}
+
+psa_status_t psa_decapsulate(psa_key_id_t key,
+                             psa_algorithm_t alg,
+                             const uint8_t * ciphertext,
+                             size_t ciphertext_length,
+                             const psa_key_attributes_t * attributes,
+                             psa_key_id_t * output_key)
+{
+    psa_status_t status = PSA_ERROR_NOT_SUPPORTED;
+    psa_key_slot_t *slot = NULL;
+    psa_key_usage_t usage = PSA_KEY_USAGE_DECAPSULATE;
+    psa_key_slot_t *output_slot = NULL;
+    size_t output_key_buffer_size = PSA_ML_KEM_SHARED_SECRET_SIZE;
+    
+    if (!PSA_ALG_IS_KEY_ENCAPSULATION(alg)) {
+        status = PSA_ERROR_INVALID_ARGUMENT;
+        goto exit;
+    }
+
+    /* Look up the slot for the private key */
+    status = psa_get_and_lock_key_slot_with_policy(key, &slot, usage, alg);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    /* Set up a key slot for the new secret */
+    *output_key = MBEDTLS_SVC_KEY_ID_INIT;
+
+    /* Reject any attempt to create a zero-length key so that we don't
+     * risk tripping up later, e.g. on a malloc(0) that returns NULL. */
+    if (psa_get_key_bits(attributes) == 0) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+
+    status = psa_start_key_creation(attributes, &output_slot);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    status = psa_allocate_buffer_to_slot(output_slot, output_key_buffer_size);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+#if defined(MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_DECAPSULATE)
+    status = mbedtls_psa_mlkem_decapsulate(slot->attr.bits,
+                                           slot->key.data,
+                                           slot->key.bytes,
+                                           ciphertext,
+                                           ciphertext_length,
+                                           output_slot->key.data,
+                                           &output_slot->key.bytes);
+#else
+    status = PSA_ERROR_NOT_SUPPORTED;
+#endif /* MBEDTLS_PSA_BUILTIN_KEY_TYPE_MLKEM_KEY_DECAPSULATE */
+
+    if (status != PSA_SUCCESS) {
+        psa_remove_key_data_from_memory(output_slot);
+    }
+
+exit:
+    if (status == PSA_SUCCESS) {
+        status = psa_finish_key_creation(output_slot, output_key);
+    }
+    if (status != PSA_SUCCESS) {
+        psa_fail_key_creation(output_slot);
+    }
+
+    return status;
 }
 
 psa_status_t psa_generate_key_iop_complete(

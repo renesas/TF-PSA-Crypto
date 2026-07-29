@@ -1,0 +1,16 @@
+{
+    "prefix":       "renesas",
+    "type":         "transparent",
+    "mbedtls/h_condition":   "defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)",
+    "headers":      ["../drivers/renesas/renesas_driver_entrypoints.h"],
+    "capabilities": [
+        {
+            "mbedtls/c_condition": "defined(MBEDTLS_PSA_RENESAS_DRIVER_ENABLED)",
+            "_comment_entry_points": "This is not the complete list of entry points supported by this driver, only those that are currently supported in JSON. See docs/psa-driver-example-and-guide.md",
+            "entry_points": ["import_key", "export_public_key"],
+            "algorithms": ["PSA_ALG_ECDH", "PSA_ALG_ECDSA(PSA_ALG_ANY_HASH)"],
+            "key_sizes": [256],
+            "fallback": false
+        }
+    ]
+}

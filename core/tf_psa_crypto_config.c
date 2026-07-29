@@ -47,6 +47,13 @@
 #define TF_PSA_CRYPTO_INCLUDE_AFTER_RAW_CONFIG "tf_psa_crypto_config_check_user.h"
 #endif /* !defined(TF_PSA_CRYPTO_WE_ARE_IN_LIBTESTDRIVER1) */
 
+/* Must be included before build_info.h (which pulls in the user config and
+ * BSP headers) so that __STDC_WANT_LIB_EXT1__ is defined before any system
+ * header is included. Otherwise sys/_types.h gets pulled in without
+ * __STDC_WANT_LIB_EXT1__=1 set, its include guard prevents re-inclusion,
+ * and __errno_t remains undefined when stdlib.h later needs it. */
+#include "tf_psa_crypto_platform_requirements.h"
+
 #include <tf-psa-crypto/build_info.h>
 
 /* Consistency checks in the configuration: check for incompatible options,

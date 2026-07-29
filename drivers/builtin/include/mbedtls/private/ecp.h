@@ -243,12 +243,13 @@ typedef struct mbedtls_ecp_group {
     void *MBEDTLS_PRIVATE(t_data);               /*!< Unused. */
     mbedtls_ecp_point *MBEDTLS_PRIVATE(T);       /*!< Pre-computed points for ecp_mul_comb(). */
     size_t MBEDTLS_PRIVATE(T_size);              /*!< The number of dynamic allocated pre-computed points. */
+    void *vendor_ctx;                            /*!< Vendor-specific context for hardware acceleration. */
 }
 mbedtls_ecp_group;
 
 #define MBEDTLS_ECP_GROUP_INIT { MBEDTLS_ECP_DP_NONE, MBEDTLS_MPI_INIT, MBEDTLS_MPI_INIT, \
                                  MBEDTLS_MPI_INIT, MBEDTLS_ECP_POINT_INIT, MBEDTLS_MPI_INIT, \
-                                 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0 }
+                                 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0, NULL }
 
 /**
  * \name SECTION: Module settings
