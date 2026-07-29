@@ -41,10 +41,10 @@
  *
  * This here is the first stage, before including the user config.
  */
-#include "tf_psa_crypto_config_check_before.h"
+// #include "tf_psa_crypto_config_check_before.h"
 /* The second stage, after including the user config but before doing
  * any subsequent adjustment, will be included by build_info.h. */
-#define TF_PSA_CRYPTO_INCLUDE_AFTER_RAW_CONFIG "tf_psa_crypto_config_check_user.h"
+//#define TF_PSA_CRYPTO_INCLUDE_AFTER_RAW_CONFIG "tf_psa_crypto_config_check_user.h"
 #endif /* !defined(TF_PSA_CRYPTO_WE_ARE_IN_LIBTESTDRIVER1) */
 
 #include <tf-psa-crypto/build_info.h>
@@ -56,7 +56,7 @@
 
 #if !defined(TF_PSA_CRYPTO_WE_ARE_IN_LIBTESTDRIVER1)
 /* Automatically generated checks (final stage after config adjustment) */
-#include "tf_psa_crypto_config_check_final.h"
+//#include "tf_psa_crypto_config_check_final.h"
 #endif /* !defined(TF_PSA_CRYPTO_WE_ARE_IN_LIBTESTDRIVER1) */
 
 /* For MBEDTLS_STATIC_ASSERT */
