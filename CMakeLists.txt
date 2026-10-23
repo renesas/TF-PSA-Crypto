@@ -37,7 +37,7 @@ cmake_policy(SET CMP0011 NEW)
 # is deprecated and will be removed in future versions.
 cmake_policy(SET CMP0012 NEW)
 
-set(TF_PSA_CRYPTO_VERSION 1.1.0)
+set(TF_PSA_CRYPTO_VERSION 1.1.1)
 set(TF_PSA_CRYPTO_SOVERSION 2)
 
 if(TEST_CPP)
@@ -71,12 +71,27 @@ set(version_number_files
         doxygen/tfpsacrypto.doxyfile)
 foreach(file ${version_number_files})
     configure_file(${file}.in
-                   ${PROJECT_SOURCE_DIR}/${file})
+                   ${PROJECT_BINARY_DIR}/${file})
 endforeach(file)
 
 ADD_CUSTOM_TARGET(${TF_PSA_CRYPTO_TARGET_PREFIX}tfpsacrypto-apidoc
     COMMAND doxygen tfpsacrypto.doxyfile
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/doxygen)
+    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/doxygen)
+
+# Create an in-tree symlink to the apidoc built in the binary folder. This is
+# only performed on Unix platforms and for out-of-tree builds. The existence
+# check is deferred to build time so that multiple out-of-tree build dirs each
+# register the command, but only the first one to build actually creates the
+# symlink.
+if(UNIX AND NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    file(RELATIVE_PATH _apidoc_rel_path
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_BINARY_DIR}/apidoc)
+    add_custom_command(TARGET ${TF_PSA_CRYPTO_TARGET_PREFIX}tfpsacrypto-apidoc POST_BUILD
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/doxygen/create_symlink.sh"
+            "${_apidoc_rel_path}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/apidoc")
+endif()
 
 option(ENABLE_PROGRAMS "Build TF-PSA-Crypto programs." ON)
 
@@ -143,7 +158,7 @@ endif()
 # We now potentially need to link all executables against PThreads, if available
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
-find_package(Threads)
+find_package(Threads QUIET)
 
 # If this is the root project add longer list of available CMAKE_BUILD_TYPE values
 if(NOT TF_PSA_CRYPTO_AS_SUBPROJECT)
@@ -408,6 +423,8 @@ endif()
 # drivers, that are appended in `drivers/CMakeLists.txt`.
 #
 set(TF_PSA_CRYPTO_PRIVATE_INCLUDE_DIRS
+        # psa_crypto_driver_wrappers.h is generated, so it may be in the build tree.
+        ${CMAKE_CURRENT_BINARY_DIR}/core
         ${CMAKE_CURRENT_SOURCE_DIR}/core
         ${CMAKE_CURRENT_SOURCE_DIR}/dispatch
         ${CMAKE_CURRENT_SOURCE_DIR}/extras
